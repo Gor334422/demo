@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="hy">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ambient Mosaic — Generative Calm</title>
+  <style>
+    :root{
+      --bg:#0f0f12;
+      --panel:#15161a;
+      --text:#e6e6ea;
+      --muted:#9aa0a6;
+      --accent:#6ee7ff;
+      --accent2:#ffb86b;
+      --danger:#ff6b6b;
+      --ok:#7cfaa1;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{display:grid;grid-template-columns:320px 1fr;gap:16px;height:100%;padding:16px}
+    .panel{
+      background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01)),var(--panel);
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,0.35);
+    }
+    .brand{display:flex;align-items:center;gap:10px}
+    .logo{width:28px;height:28px;border-radius:8px;background:conic-gradient(from 0deg,var(--accent),var(--accent2),var(--ok),var(--accent));box-shadow:0 4px 12px rgba(0,0,0,0.4)}
+    .title{font-weight:700;letter-spacing:.3px}
+    .muted{color:var(--muted);font-size:13px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{
+      background:#1b1d22;color:var(--text);border:1px solid rgba(255,255,255,0.08);
+      padding:10px 12px;border-radius:10px;cursor:pointer;transition:.2s;
+    }
+    .btn:hover{transform:translateY(-1px);background:#20232a}
+    .btn.primary{background:linear-gradient(180deg,#1f2a33,#182028);border-color:#2a3a44}
+    .btn.accent{background:linear-gradient(180deg,#17323a,#13262c);border-color:#2a4a54;color:var(--accent)}
+    .btn.ok{background:linear-gradient(180deg,#173a2a,#132c21);border-color:#2a5440;color:var(--ok)}
+    .btn.danger{background:linear-gradient(180deg,#3a1717,#2c1313);border-color:#543a3a;color:var(--danger)}
+    .input, select{
+      background:#1b1d22;border:1px solid rgba(255,255,255,0.08);color:var(--text);
+      padding:10px;border-radius:10px;outline:none;min-width:0;
+    }
+    .grid{
+      background:#0b0c0f;border:1px solid rgba(255,255,255,0.06);
+      border-radius:14px; position:relative; overflow:hidden;
+    }
+    canvas{display:block;width:100%;height:100%}
+    .footer{margin-top:auto;font-size:12px;color:var(--muted)}
+    .badge{padding:6px 10px;border-radius:999px;background:#1b1d22;border:1px solid rgba(255,255,255,0.08)}
+    .sep{height:1px;background:rgba(255,255,255,0.08);margin:8px 0}
+    @media (max-width:900px){.wrap{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="panel">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <div class="title">Ambient Mosaic</div>
+          <div class="muted">Generated calming mosaic</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="badge" id="greet">Hello world</span>
+        <span class="badge" id="seedBadge">Seed: auto</span>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <label class="muted">Theme</label>
+        <select id="palette">
+          <option value="aurora">Aurora</option>
+          <option value="sunset">Sunset</option>
+          <option value="forest">Forest</option>
+          <option value="ocean">Ocean</option>
+          <option value="mono">Mono</option>
+        </select>
+        <button class="btn accent" id="shuffle">Change colors</button>
+      </div>
+
+      <div class="row">
+        <label class="muted">Seed</label>
+        <input class="input" id="seed" placeholder="leave empty = auto"/>
+        <button class="btn" id="applySeed">Apply</button>
+        <button class="btn danger" id="clearSeed">Clear</button>
+      </div>
+
+      <div class="row">
+        <label class="muted">Size</label>
+        <select id="density">
+          <option value="24">Large blocks</option>
+          <option value="18">Medium blocks</option>
+          <option value="12">Small blocks</option>
+        </select>
+        <button class="btn" id="pulse">Light motion</button>
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="export">Export PNG</button>
+        <button class="btn ok" id="pause">Pause</button>
+        <button class="btn" id="resume">Continue</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="footer">
+        <div>This works entirely in the browser — without backend.</div>
+        <div>It can serve as a landing, creative background, or lightweight art tool.</div>
+      </div>
+    </aside>
+
+    <main class="grid">
+      <canvas id="cnv"></canvas>
+    </main>
+  </div>
+
+  <script>
+    // ——— Utilities
+    const tz = "Asia/Yerevan";
+    function greet(){
+      const h = new Date().toLocaleString("en-US",{hour:"numeric",hour12:false,timeZone:tz});
+      const hour = parseInt(h,10);
+      let t = "Բարի օր, Երևան";
+      if(hour>=5 && hour<12) t="Բարի առավոտ, Երևան";
+      else if(hour>=12 && hour<18) t="Բարի օր, Երևան";
+      else t="Բարի երեկո, Երևան";
+      document.getElementById("greet").textContent = t;
+    }
+    greet();
+
+    // PRNG with seed
+    let SEED = null;
+    function xorshift32(seed){
+      let x = seed>>>0;
+      return ()=> {
+        x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+        return (x>>>0)/4294967296;
+      };
+    }
+    function autoSeed(){
+      const s = (Date.now() ^ (performance.now()*1000)) >>> 0;
+      SEED = s;
+      rng = xorshift32(s);
+      document.getElementById("seedBadge").textContent = "Seed: "+s;
+    }
+    let rng = Math.random;
+    autoSeed();
+
+    // Palettes
+    const palettes = {
+      aurora:["#6ee7ff","#7cfaa1","#b7f0ff","#2dd4bf","#94a3b8"],
+      sunset:["#ffb86b","#ff6b6b","#ffd56b","#ff9f6b","#a78bfa"],
+      forest:["#0ea5a5","#0f766e","#064e3b","#22c55e","#84cc16"],
+      ocean:["#60a5fa","#38bdf8","#0ea5e9","#0284c7","#1e293b"],
+      mono:["#e6e6ea","#c9c9cf","#9aa0a6","#6b7280","#374151"]
+    };
+
+    // Canvas setup
+    const cnv = document.getElementById("cnv");
+    const ctx = cnv.getContext("2d");
+    let W,H,gridSize=18, anim=true, t=0;
+
+    function resize(){
+      W = cnv.parentElement.clientWidth;
+      H = cnv.parentElement.clientHeight;
+      cnv.width = W; cnv.height = H;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    let currentPalette = "aurora";
+    function pick(arr){ return arr[Math.floor(rng()*arr.length)] }
+
+    function draw(){
+      if(!anim) return;
+      t += 0.00001;
+      ctx.clearRect(0,0,W,H);
+      const cols = Math.ceil(W/gridSize);
+      const rows = Math.ceil(H/gridSize);
+      const pal = palettes[currentPalette];
+
+      for(let y=0;y<rows;y++){
+        for(let x=0;x<cols;x++){
+          const nx = x/cols, ny = y/rows;
+          const wobble = Math.sin((nx+ny+t)*Math.PI*2)*0.5 + 0.5;
+          const color = pal[Math.floor(wobble*(pal.length-1))];
+          ctx.fillStyle = color;
+          const jitter = (rng()-0.5)*2;
+          const size = gridSize + jitter*2;
+          ctx.fillRect(x*gridSize, y*gridSize, size, size);
+
+          // subtle overlay
+          ctx.globalAlpha = 0.06;
+          ctx.fillStyle = "#000";
+          ctx.fillRect(x*gridSize, y*gridSize, size, size);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    function loop(){
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    // Controls
+    document.getElementById("palette").addEventListener("change", e=>{
+      currentPalette = e.target.value;
+    });
+    document.getElementById("shuffle").addEventListener("click", ()=>{
+      autoSeed();
+    });
+    document.getElementById("density").addEventListener("change", e=>{
+      gridSize = parseInt(e.target.value,10);
+    });
+    document.getElementById("pulse").addEventListener("click", ()=>{
+      t += 0.25;
+    });
+    document.getElementById("pause").addEventListener("click", ()=>{ anim=false; });
+    document.getElementById("resume").addEventListener("click", ()=>{ anim=true; loop(); });
+
+    document.getElementById("applySeed").addEventListener("click", ()=>{
+      const v = document.getElementById("seed").value.trim();
+      if(v && /^\d+$/.test(v)){
+        SEED = parseInt(v,10)>>>0;
+        rng = xorshift32(SEED);
+        document.getElementById("seedBadge").textContent = "Seed: "+SEED;
+      } else {
+        autoSeed();
+      }
+    });
+    document.getElementById("clearSeed").addEventListener("click", ()=>{
+      document.getElementById("seed").value="";
+      autoSeed();
+    });
+
+    document.getElementById("export").addEventListener("click", ()=>{
+      const link = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g,"-");
+      link.download = `ambient-mosaic-${currentPalette}-seed-${SEED}-${stamp}.png`;
+      link.href = cnv.toDataURL("image/png");
+      link.click();
+    });
+  </script>
+</body>
+</html>
